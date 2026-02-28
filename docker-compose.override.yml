@@ -1,0 +1,12 @@
+# Режим разработки — применяется автоматически поверх docker-compose.yml.
+# Монтирует исходный код в контейнер и запускает uvicorn с --reload,
+# поэтому изменения в коде применяются без пересборки образа.
+#
+# Использование:
+#   docker-compose up          ← применяет оба файла автоматически
+#   docker-compose up --build  ← пересобрать образ (нужно при изменении requirements.txt)
+services:
+  app:
+    volumes:
+      - .:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--timeout-graceful-shutdown", "5"]
