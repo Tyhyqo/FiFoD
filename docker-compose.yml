@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Локальная директория ./files монтируется в контейнер — добавляй файлы прямо на хосте
+      - ./files:/app/files
+    depends_on:
+      db:
+        condition: service_healthy
+    # Должен превышать --timeout-graceful-shutdown uvicorn (30с) + запас на cleanup ресурсов
+    stop_grace_period: 35s
+
+volumes:
+  postgres_data:
