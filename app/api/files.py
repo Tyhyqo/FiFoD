@@ -8,10 +8,10 @@ router = APIRouter()
 
 
 @router.get("/files", response_model=list[FileOut])
-def get_files(
+async def get_files(
     skip: int = Query(0, ge=0, description="Пропустить первые N файлов"),
     limit: int = Query(100, ge=1, le=1000, description="Максимальное число файлов в ответе"),
     svc: FileService = Depends(get_file_service),
 ):
     """Получить список файлов в рабочей директории."""
-    return svc.list_files(skip=skip, limit=limit)
+    return await svc.list_files(skip=skip, limit=limit)
