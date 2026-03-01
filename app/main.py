@@ -18,5 +18,5 @@ register_exception_handlers(app)
 
 
 @app.get("/health", include_in_schema=False)
-def healthcheck():
+async def healthcheck():
     return {"status": "ok"}

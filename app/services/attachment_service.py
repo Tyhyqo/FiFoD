@@ -54,6 +54,5 @@ class AttachmentService:
         logger.info("Attachment created: id=%s device=%s", attachment.id, device_id)
         return attachment
 
-    async def get_all(self) -> list[Attachment]:
-        """Получить все привязки с файлами."""
-        return await self._repo.get_all()
+    async def get_all(self, skip: int = 0, limit: int = 100) -> list[Attachment]:
+        return await self._repo.get_all(skip=skip, limit=limit)
