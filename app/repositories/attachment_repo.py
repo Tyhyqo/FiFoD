@@ -40,10 +40,13 @@ class AttachmentRepo:
         )
         return result.scalar_one()
 
-    async def get_all(self) -> list[Attachment]:
-        """Получить все привязки вместе с файлами."""
+    async def get_all(self, skip: int = 0, limit: int = 100) -> list[Attachment]:
         result = await self._session.execute(
-            select(Attachment).options(selectinload(Attachment.files))
+            select(Attachment)
+            .options(selectinload(Attachment.files))
+            .order_by(Attachment.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
         attachments = list(result.scalars().all())
         logger.debug("Fetched %d attachments from DB.", len(attachments))
