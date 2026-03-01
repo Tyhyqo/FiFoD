@@ -52,21 +52,33 @@ cp firmware.bin ./files/
 
 ### GET /api/attachments
 
-Все созданные привязки с информацией о файлах.
+Все созданные привязки с информацией о файлах. Поддерживает пагинацию (`skip`, `limit`).
 
 ## Переменные окружения
 
-Полный список с описаниями и значениями по умолчанию — в `.env.example`.
+Полный список с описаниями — в `.env.example`. Ниже все доступные переменные:
 
-Основные:
+| Переменная | Обязательная | По умолчанию | Описание |
+|---|---|---|---|
+| `DATABASE_URL` | да | — | Строка подключения к PostgreSQL (`postgresql+asyncpg://...`) |
+| `DB_POOL_SIZE` | нет | `10` | Количество постоянных соединений в пуле |
+| `DB_MAX_OVERFLOW` | нет | `20` | Дополнительные соединения сверх пула |
+| `DB_POOL_RECYCLE` | нет | `3600` | Пересоздавать соединения через N секунд |
+| `EXTERNAL_API_URL` | да | — | URL внешнего API устройств |
+| `EXTERNAL_API_TOKEN` | да | — | Bearer-токен для внешнего API |
+| `EXTERNAL_API_RETRY_COUNT` | нет | `3` | Количество повторных попыток при ошибке |
+| `EXTERNAL_API_RETRY_DELAY` | нет | `1.0` | Пауза между попытками (секунды) |
+| `HTTP_TIMEOUT_CONNECT` | нет | `5.0` | Таймаут на установку соединения (сек) |
+| `HTTP_TIMEOUT_READ` | нет | `10.0` | Таймаут ожидания ответа (сек) |
+| `HTTP_TIMEOUT_WRITE` | нет | `10.0` | Таймаут на отправку запроса (сек) |
+| `HTTP_TIMEOUT_POOL` | нет | `5.0` | Таймаут ожидания свободного коннекта из пула (сек) |
+| `HTTP_MAX_CONNECTIONS` | нет | `100` | Максимум одновременных HTTP-соединений |
+| `HTTP_MAX_KEEPALIVE_CONNECTIONS` | нет | `20` | Максимум keep-alive соединений |
+| `HTTP_KEEPALIVE_EXPIRY` | нет | `30.0` | Время жизни keep-alive соединения (сек) |
+| `FILE_DIR` | нет | `/app/files` | Директория с файлами для привязки |
+| `LOG_LEVEL` | нет | `INFO` | Уровень логирования (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 
-| Переменная | Обязательная | Описание |
-|---|---|---|
-| `DATABASE_URL` | да | Строка подключения к PostgreSQL (`postgresql+asyncpg://...`) |
-| `EXTERNAL_API_URL` | да | URL внешнего API устройств |
-| `EXTERNAL_API_TOKEN` | да | Токен авторизации для внешнего API |
-| `FILE_DIR` | нет | Директория с файлами (по умолчанию `/app/files`) |
-| `LOG_LEVEL` | нет | Уровень логирования: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+Для Docker Compose также нужны `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — они передаются в контейнер PostgreSQL.
 
 ## Структура проекта
 
