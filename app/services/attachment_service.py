@@ -46,7 +46,7 @@ class AttachmentService:
         # Убираем дубликаты, сохраняя оригинальный порядок (dict.fromkeys — O(n), Python 3.7+)
         unique_names = list(dict.fromkeys(file_names))
 
-        missing = [f for f in unique_names if not self._file_service.file_exists(f)]
+        missing = [f for f in unique_names if not await self._file_service.file_exists(f)]
         if missing:
             raise FilesNotFoundError(missing)
 
