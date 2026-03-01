@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class FileService:
 
-    def list_files(self, skip: int = 0, limit: int = 100) -> list[dict]:
+    async def list_files(self, skip: int = 0, limit: int = 100) -> list[dict]:
         """
         Получить страницу файлов из рабочей директории (FILE_DIR).
 
@@ -19,6 +20,19 @@ class FileService:
         Символические ссылки намеренно исключены.
         Результат отсортирован по имени для стабильной пагинации.
         """
+        return await asyncio.to_thread(self._list_files_sync, skip, limit)
+
+    async def file_exists(self, file_name: str) -> bool:
+        """
+        Проверить наличие файла в рабочей директории.
+
+        Защита от path traversal: resolve() разворачивает .. и symlinks,
+        после чего проверяем, что итоговый путь остаётся внутри FILE_DIR.
+        """
+        return await asyncio.to_thread(self._file_exists_sync, file_name)
+
+    @staticmethod
+    def _list_files_sync(skip: int, limit: int) -> list[dict]:
         file_dir = settings.FILE_DIR
         if not os.path.isdir(file_dir):
             return []
@@ -31,24 +45,22 @@ class FileService:
         entries.sort(key=lambda e: e.name)
         page = entries[skip : skip + limit]
 
-        return [
-            {
-                "name": entry.name,
-                "size": entry.stat().st_size,
-                "modified_at": datetime.fromtimestamp(
-                    entry.stat().st_mtime, tz=timezone.utc
-                ),
-            }
-            for entry in page
-        ]
+        result = []
+        for entry in page:
+            stat = entry.stat()
+            result.append(
+                {
+                    "name": entry.name,
+                    "size": stat.st_size,
+                    "modified_at": datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    ),
+                }
+            )
+        return result
 
-    def file_exists(self, file_name: str) -> bool:
-        """
-        Проверить наличие файла в рабочей директории.
-
-        Защита от path traversal: resolve() разворачивает .. и symlinks,
-        после чего проверяем, что итоговый путь остаётся внутри FILE_DIR.
-        """
+    @staticmethod
+    def _file_exists_sync(file_name: str) -> bool:
         file_dir = Path(settings.FILE_DIR).resolve()
         target = (file_dir / file_name).resolve()
         if not target.is_relative_to(file_dir):
