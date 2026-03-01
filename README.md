@@ -84,13 +84,16 @@ cp firmware.bin ./files/
 
 ```
 app/
-  api/              # Роуты (devices, files, attachments)
+  api/              # Роуты (devices, files, attachments) и обработчики ошибок
   services/         # Бизнес-логика
   repositories/     # Работа с БД
-  db/               # ORM-модели, сессии
+  db/               # ORM-модели, сессии, декларативная база
   schemas/          # Pydantic-схемы запросов/ответов
   infrastructure/   # Движок БД, HTTP-клиент, lifespan
   core/             # Логирование
+  main.py           # Точка входа (FastAPI-приложение)
+  router.py         # Подключение роутеров
+  dependencies.py   # Фабрики зависимостей (Depends)
   config.py         # Настройки (pydantic-settings)
   exceptions.py     # Доменные исключения
 migrations/         # Alembic-миграции
