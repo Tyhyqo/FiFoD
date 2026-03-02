@@ -40,7 +40,7 @@ class AttachmentService:
 
         if device_id not in available_serials:
             raise DeviceNotFoundError(
-                f"Устройство '{device_id}' не найдено или недоступно."
+                f"Device '{device_id}' not found or unavailable."
             )
 
         # Убираем дубликаты, сохраняя оригинальный порядок (dict.fromkeys — O(n), Python 3.7+)

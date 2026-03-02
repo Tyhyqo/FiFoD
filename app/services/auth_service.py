@@ -23,7 +23,7 @@ class AuthService:
     async def register(self, username: str, password: str) -> User:
         existing = await self._repo.get_by_username(username)
         if existing:
-            raise UserAlreadyExistsError(f"Пользователь '{username}' уже существует.")
+            raise UserAlreadyExistsError(f"User '{username}' already exists.")
 
         hashed = pwd_context.hash(password)
         return await self._repo.create(username, hashed)
@@ -31,7 +31,7 @@ class AuthService:
     async def login(self, username: str, password: str) -> dict:
         user = await self._repo.get_by_username(username)
         if not user or not pwd_context.verify(password, user.hashed_password):
-            raise InvalidCredentialsError("Неверное имя пользователя или пароль.")
+            raise InvalidCredentialsError("Invalid username or password.")
 
         access_token = self._create_access_token(user)
         refresh_token_id, refresh_token_str = self._generate_refresh_token_id()
@@ -51,18 +51,18 @@ class AuthService:
         try:
             token_id = uuid.UUID(refresh_token_str)
         except ValueError:
-            raise InvalidRefreshTokenError("Некорректный refresh-токен.")
+            raise InvalidRefreshTokenError("Invalid refresh token.")
 
         now = datetime.now(timezone.utc)
         await self._repo.delete_expired_refresh_tokens(now)
 
         token = await self._repo.get_refresh_token(token_id)
         if not token or token.expires_at < now:
-            raise InvalidRefreshTokenError("Refresh-токен недействителен или истёк.")
+            raise InvalidRefreshTokenError("Refresh token is invalid or expired.")
 
         user = await self._repo.get_by_id(token.user_id)
         if not user:
-            raise InvalidRefreshTokenError("Пользователь не найден.")
+            raise InvalidRefreshTokenError("User not found.")
 
         await self._repo.delete_refresh_token(token_id)
 
@@ -86,9 +86,9 @@ class AuthService:
                 algorithms=[settings.JWT_ALGORITHM],
             )
         except jwt.ExpiredSignatureError:
-            raise InvalidCredentialsError("Токен доступа истёк.")
+            raise InvalidCredentialsError("Access token has expired.")
         except jwt.InvalidTokenError:
-            raise InvalidCredentialsError("Некорректный токен доступа.")
+            raise InvalidCredentialsError("Invalid access token.")
 
     @staticmethod
     def _create_access_token(user: User) -> str:

@@ -63,12 +63,12 @@ async def get_current_user(
     payload = AuthService.decode_access_token(token)
     user_id = payload.get("sub")
     if not user_id:
-        raise InvalidCredentialsError("Некорректный токен доступа.")
+        raise InvalidCredentialsError("Invalid access token.")
 
     from uuid import UUID
 
     user = await repo.get_by_id(UUID(user_id))
     if not user:
-        raise InvalidCredentialsError("Пользователь не найден.")
+        raise InvalidCredentialsError("User not found.")
 
     return user

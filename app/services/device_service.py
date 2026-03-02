@@ -38,13 +38,13 @@ class DeviceService:
 
                 if response.status_code >= 500:
                     logger.warning(
-                        "Внешний API вернул %s (попытка %d/%d)",
+                        "External API returned %s (attempt %d/%d)",
                         response.status_code,
                         attempt,
                         settings.EXTERNAL_API_RETRY_COUNT,
                     )
                     last_exc = httpx.HTTPStatusError(
-                        f"Ошибка сервера {response.status_code}",
+                        f"Server error {response.status_code}",
                         request=response.request,
                         response=response,
                     )
@@ -54,15 +54,15 @@ class DeviceService:
                 # 4xx — конфигурационная ошибка, retry бесполезен
                 if not response.is_success:
                     raise ExternalAPIError(
-                        f"Внешний API вернул {response.status_code}. "
-                        "Проверьте EXTERNAL_API_URL и EXTERNAL_API_TOKEN."
+                        f"External API returned {response.status_code}. "
+                        "Check EXTERNAL_API_URL and EXTERNAL_API_TOKEN."
                     )
 
                 try:
                     data = response.json()
                 except (json.JSONDecodeError, httpx.DecodingError) as exc:
                     logger.warning(
-                        "Внешний API вернул не-JSON (попытка %d/%d): %s",
+                        "External API returned non-JSON response (attempt %d/%d): %s",
                         attempt,
                         settings.EXTERNAL_API_RETRY_COUNT,
                         exc,
@@ -76,11 +76,11 @@ class DeviceService:
                 if isinstance(data, dict):
                     if not data.get("success", True):
                         logger.warning(
-                            "Внешний API занят (success=false), попытка %d/%d",
+                            "External API busy (success=false), attempt %d/%d",
                             attempt,
                             settings.EXTERNAL_API_RETRY_COUNT,
                         )
-                        last_exc = RuntimeError("Внешний API вернул success=false")
+                        last_exc = RuntimeError("External API returned success=false")
                         await asyncio.sleep(settings.EXTERNAL_API_RETRY_DELAY)
                         continue
                     devices_raw = data.get("devices") or data.get("data", [])
@@ -95,7 +95,7 @@ class DeviceService:
                 # TransportError покрывает: TimeoutException, NetworkError,
                 # ProtocolError (RemoteProtocolError), ProxyError, UnsupportedProtocol
                 logger.warning(
-                    "Сетевая ошибка при обращении к внешнему API (попытка %d/%d): %s",
+                    "Network error while calling external API (attempt %d/%d): %s",
                     attempt,
                     settings.EXTERNAL_API_RETRY_COUNT,
                     exc,
@@ -104,7 +104,7 @@ class DeviceService:
                 await asyncio.sleep(settings.EXTERNAL_API_RETRY_DELAY)
 
         raise ExternalAPIError(
-            f"Внешний API недоступен после {settings.EXTERNAL_API_RETRY_COUNT} попыток"
+            f"External API unavailable after {settings.EXTERNAL_API_RETRY_COUNT} attempts"
         ) from last_exc
 
     @staticmethod
