@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
+from app.core.rate_limit import limiter
 from app.dependencies import get_auth_service
 from app.schemas.auth import RefreshTokenIn, TokenOut, UserCreateIn, UserOut
 from app.services.auth_service import AuthService
@@ -17,7 +18,9 @@ async def register(
 
 
 @router.post("/auth/login", response_model=TokenOut)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     svc: AuthService = Depends(get_auth_service),
 ):

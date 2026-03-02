@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -13,7 +14,9 @@ from app.exceptions import (
 )
 from app.repositories.user_repo import UserRepo
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
+
+pwd_context = CryptContext(schemes=["bcrypt"])
 
 
 class AuthService:
@@ -26,24 +29,28 @@ class AuthService:
             raise UserAlreadyExistsError(f"User '{username}' already exists.")
 
         hashed = pwd_context.hash(password)
-        return await self._repo.create(username, hashed)
+        user = await self._repo.create(username, hashed)
+        logger.info("User registered: %s", username)
+        return user
 
     async def login(self, username: str, password: str) -> dict:
         user = await self._repo.get_by_username(username)
         if not user or not pwd_context.verify(password, user.hashed_password):
+            logger.warning("Failed login attempt for: %s", username)
             raise InvalidCredentialsError("Invalid username or password.")
 
         access_token = self._create_access_token(user)
-        refresh_token_id, refresh_token_str = self._generate_refresh_token_id()
+        token_id = uuid.uuid4()
 
         expires_at = datetime.now(timezone.utc) + timedelta(
             days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
         )
-        await self._repo.create_refresh_token(user.id, refresh_token_id, expires_at)
+        await self._repo.create_refresh_token(user.id, token_id, expires_at)
 
+        logger.info("User logged in: %s", username)
         return {
             "access_token": access_token,
-            "refresh_token": refresh_token_str,
+            "refresh_token": str(token_id),
             "token_type": "bearer",
         }
 
@@ -54,9 +61,9 @@ class AuthService:
             raise InvalidRefreshTokenError("Invalid refresh token.")
 
         now = datetime.now(timezone.utc)
-        await self._repo.delete_expired_refresh_tokens(now)
 
-        token = await self._repo.get_refresh_token(token_id)
+        # Атомарно забираем токен (DELETE ... RETURNING) — защита от race condition
+        token = await self._repo.take_refresh_token(token_id)
         if not token or token.expires_at < now:
             raise InvalidRefreshTokenError("Refresh token is invalid or expired.")
 
@@ -64,16 +71,15 @@ class AuthService:
         if not user:
             raise InvalidRefreshTokenError("User not found.")
 
-        await self._repo.delete_refresh_token(token_id)
-
         access_token = self._create_access_token(user)
-        new_token_id, new_token_str = self._generate_refresh_token_id()
+        new_token_id = uuid.uuid4()
         new_expires = now + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
         await self._repo.create_refresh_token(user.id, new_token_id, new_expires)
 
+        logger.info("Token refreshed for user: %s", user.username)
         return {
             "access_token": access_token,
-            "refresh_token": new_token_str,
+            "refresh_token": str(new_token_id),
             "token_type": "bearer",
         }
 
@@ -102,8 +108,3 @@ class AuthService:
         return jwt.encode(
             payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
         )
-
-    @staticmethod
-    def _generate_refresh_token_id() -> tuple[uuid.UUID, str]:
-        token_id = uuid.uuid4()
-        return token_id, str(token_id)
