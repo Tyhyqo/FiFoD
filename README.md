@@ -7,7 +7,7 @@
 
 ```bash
 cp .env.example .env
-# Отредактировать .env: указать EXTERNAL_API_URL и EXTERNAL_API_TOKEN
+# Отредактировать .env: указать EXTERNAL_API_URL, EXTERNAL_API_TOKEN и JWT_SECRET_KEY
 
 docker compose up --build
 ```
@@ -16,6 +16,47 @@ docker compose up --build
 
 В dev-режиме (с `docker-compose.override.yml`) код монтируется в контейнер и uvicorn
 перезапускается при изменениях — пересборка образа не нужна.
+
+## Авторизация
+
+Все эндпоинты (кроме `/api/auth/*` и `/health`) защищены JWT-токеном.
+Swagger UI (`/docs`) поддерживает кнопку **Authorize** для удобного тестирования.
+
+### Регистрация
+
+```bash
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "secret123"}'
+```
+
+### Логин
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -d "username=admin&password=secret123"
+```
+
+Возвращает `access_token` (JWT, живёт 30 мин) и `refresh_token` (UUID, живёт 7 дней).
+
+### Использование токена
+
+```bash
+curl http://localhost:8000/api/devices \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Обновление токена
+
+Когда access-токен истёк, отправьте refresh-токен для получения новой пары:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+```
+
+Каждый refresh-токен одноразовый — после использования выдаётся новая пара токенов (ротация).
 
 ## API
 
@@ -64,6 +105,10 @@ cp firmware.bin ./files/
 | `DB_POOL_SIZE` | нет | `10` | Количество постоянных соединений в пуле |
 | `DB_MAX_OVERFLOW` | нет | `20` | Дополнительные соединения сверх пула |
 | `DB_POOL_RECYCLE` | нет | `3600` | Пересоздавать соединения через N секунд |
+| `JWT_SECRET_KEY` | да | — | Секретный ключ для подписи JWT-токенов |
+| `JWT_ALGORITHM` | нет | `HS256` | Алгоритм подписи JWT |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | нет | `30` | Время жизни access-токена (минуты) |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | нет | `7` | Время жизни refresh-токена (дни) |
 | `EXTERNAL_API_URL` | да | — | URL внешнего API устройств |
 | `EXTERNAL_API_TOKEN` | да | — | Bearer-токен для внешнего API |
 | `EXTERNAL_API_RETRY_COUNT` | нет | `3` | Количество повторных попыток при ошибке |
@@ -104,5 +149,6 @@ files/              # Директория для файлов (монтируе
 
 - Python 3.12, FastAPI, uvicorn
 - PostgreSQL 16, SQLAlchemy 2.0 (async), Alembic
+- PyJWT + passlib/bcrypt (JWT-авторизация с refresh-токенами)
 - httpx (async HTTP-клиент для внешнего API)
 - Docker, Docker Compose

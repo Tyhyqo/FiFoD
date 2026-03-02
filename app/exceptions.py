@@ -6,6 +6,18 @@ class DeviceNotFoundError(Exception):
     pass
 
 
+class InvalidCredentialsError(Exception):
+    pass
+
+
+class UserAlreadyExistsError(Exception):
+    pass
+
+
+class InvalidRefreshTokenError(Exception):
+    pass
+
+
 class FilesNotFoundError(Exception):
 
     def __init__(self, missing: list[str]) -> None:
