@@ -47,7 +47,7 @@ async def files_not_found_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=422,
-        content={"detail": "Файлы не найдены в рабочей директории.", "missing": exc.missing},
+        content={"detail": "Files not found in working directory.", "missing": exc.missing},
     )
 
 
@@ -62,7 +62,7 @@ async def db_operational_error_handler(
     )
     return JSONResponse(
         status_code=503,
-        content={"detail": "База данных временно недоступна."},
+        content={"detail": "Database temporarily unavailable."},
     )
 
 
@@ -94,5 +94,5 @@ async def unhandled_exception_handler(
     logger.exception("Unhandled exception: %s %s", request.method, request.url)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Внутренняя ошибка сервера."},
+        content={"detail": "Internal server error."},
     )

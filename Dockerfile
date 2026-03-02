@@ -7,10 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Директория для файлов (может быть переопределена через FILE_DIR)
 RUN mkdir -p /app/files
-
-# Скрипт запуска: применяет миграции, затем передаёт управление CMD
 RUN chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]

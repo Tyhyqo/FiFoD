@@ -22,4 +22,4 @@ class FilesNotFoundError(Exception):
 
     def __init__(self, missing: list[str]) -> None:
         self.missing = missing
-        super().__init__(f"Файлы не найдены в директории: {missing}")
+        super().__init__(f"Files not found in directory: {missing}")

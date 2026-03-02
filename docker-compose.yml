@@ -20,12 +20,10 @@ services:
     env_file:
       - .env
     volumes:
-      # Локальная директория ./files монтируется в контейнер — добавляй файлы прямо на хосте
       - ./files:/app/files
     depends_on:
       db:
         condition: service_healthy
-    # Должен превышать --timeout-graceful-shutdown uvicorn (30с) + запас на cleanup ресурсов
     stop_grace_period: 35s
 
 volumes:
