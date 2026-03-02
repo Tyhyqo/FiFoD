@@ -5,7 +5,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
-from app.exceptions import DeviceNotFoundError, ExternalAPIError, FilesNotFoundError
+from app.exceptions import (
+    DeviceNotFoundError,
+    ExternalAPIError,
+    FilesNotFoundError,
+    InvalidCredentialsError,
+    InvalidRefreshTokenError,
+    UserAlreadyExistsError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +64,28 @@ async def db_operational_error_handler(
         status_code=503,
         content={"detail": "База данных временно недоступна."},
     )
+
+
+async def invalid_credentials_handler(
+    request: Request, exc: InvalidCredentialsError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"detail": str(exc)},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def user_already_exists_handler(
+    request: Request, exc: UserAlreadyExistsError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+async def invalid_refresh_token_handler(
+    request: Request, exc: InvalidRefreshTokenError
+) -> JSONResponse:
+    return JSONResponse(status_code=401, content={"detail": str(exc)})
 
 
 async def unhandled_exception_handler(

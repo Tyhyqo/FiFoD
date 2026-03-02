@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     HTTP_MAX_KEEPALIVE_CONNECTIONS: int = Field(20, ge=1)
     HTTP_KEEPALIVE_EXPIRY: float = Field(30.0, ge=0)
 
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, ge=1)
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(7, ge=1)
+
     FILE_DIR: str = "/app/files"
 
     LOG_LEVEL: str = Field("INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
