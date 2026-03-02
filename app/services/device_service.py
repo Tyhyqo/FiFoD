@@ -20,16 +20,7 @@ class DeviceService:
         self._headers = {"Authorization": f"Bearer {settings.EXTERNAL_API_TOKEN}"}
 
     async def get_free_devices(self) -> list[dict]:
-        """
-        Получить список свободных устройств.
-
-        Повторяет запрос только при HTTP 5xx или success=false в теле ответа.
-        Ошибки 4xx не ретраятся — они сигнализируют о проблеме конфигурации
-        (неверный токен, неверный URL) и немедленно поднимают ExternalAPIError.
-
-        Raises:
-            ExternalAPIError: при 4xx, сетевой ошибке или исчерпании попыток.
-        """
+        """Получить список свободных устройств с retry при 5xx."""
         last_exc: Exception | None = None
 
         for attempt in range(1, settings.EXTERNAL_API_RETRY_COUNT + 1):

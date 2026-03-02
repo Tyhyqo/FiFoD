@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,16 +35,18 @@ class UserRepo:
         await self._session.commit()
         return token
 
-    async def get_refresh_token(self, token_id: uuid.UUID) -> RefreshToken | None:
-        return await self._session.get(RefreshToken, token_id)
-
-    async def delete_refresh_token(self, token_id: uuid.UUID) -> None:
-        await self._session.execute(
-            delete(RefreshToken).where(RefreshToken.id == token_id)
+    async def take_refresh_token(self, token_id: uuid.UUID) -> RefreshToken | None:
+        """Атомарно удалить и вернуть refresh-токен (DELETE ... RETURNING)."""
+        result = await self._session.execute(
+            delete(RefreshToken)
+            .where(RefreshToken.id == token_id)
+            .returning(RefreshToken)
         )
         await self._session.commit()
+        return result.scalar_one_or_none()
 
-    async def delete_expired_refresh_tokens(self, now: datetime) -> None:
+    async def delete_expired_refresh_tokens(self) -> None:
+        now = datetime.now(timezone.utc)
         await self._session.execute(
             delete(RefreshToken).where(RefreshToken.expires_at < now)
         )
