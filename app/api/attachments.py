@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.dependencies import get_attachment_service
+from app.db.models import User
+from app.dependencies import get_attachment_service, get_current_user
 from app.schemas.attachment import AttachmentCreateIn, AttachmentOut
 from app.services.attachment_service import AttachmentService
 
@@ -10,6 +11,7 @@ router = APIRouter()
 @router.post("/attachments", response_model=AttachmentOut, status_code=201)
 async def create_attachment(
     body: AttachmentCreateIn,
+    _user: User = Depends(get_current_user),
     svc: AttachmentService = Depends(get_attachment_service),
 ):
     """Создать привязку файлов к устройству."""
@@ -18,6 +20,7 @@ async def create_attachment(
 
 @router.get("/attachments", response_model=list[AttachmentOut])
 async def list_attachments(
+    _user: User = Depends(get_current_user),
     skip: int = Query(0, ge=0, description="Пропустить первые N привязок"),
     limit: int = Query(100, ge=1, le=1000, description="Максимальное число привязок в ответе"),
     svc: AttachmentService = Depends(get_attachment_service),
