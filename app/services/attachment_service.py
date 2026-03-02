@@ -22,17 +22,7 @@ class AttachmentService:
         self._file_service = file_service
 
     async def create(self, device_id: str, file_names: list[str]) -> Attachment:
-        """
-        Создать привязку устройства к файлам.
-
-        Проверяет, что устройство присутствует в списке свободных устройств
-        внешнего API и что все указанные файлы существуют в директории.
-
-        Raises:
-            ExternalAPIError: если внешний API недоступен.
-            DeviceNotFoundError: если устройство не найдено или не свободно.
-            FilesNotFoundError: если один или несколько файлов отсутствуют.
-        """
+        """Создать привязку устройства к файлам, проверив доступность устройства и наличие файлов."""
         logger.info("Creating attachment: device=%s files=%s", device_id, file_names)
 
         devices = await self._device_service.get_free_devices()

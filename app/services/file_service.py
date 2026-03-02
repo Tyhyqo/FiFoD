@@ -12,23 +12,11 @@ logger = logging.getLogger(__name__)
 class FileService:
 
     async def list_files(self, skip: int = 0, limit: int = 100) -> list[dict]:
-        """
-        Получить страницу файлов из рабочей директории (FILE_DIR).
-
-        Возвращает метаданные каждого файла: имя, размер, дата изменения (UTC).
-        Не рекурсивный — только файлы верхнего уровня директории.
-        Символические ссылки намеренно исключены.
-        Результат отсортирован по имени для стабильной пагинации.
-        """
+        """Получить страницу файлов из рабочей директории (FILE_DIR)."""
         return await asyncio.to_thread(self._list_files_sync, skip, limit)
 
     async def file_exists(self, file_name: str) -> bool:
-        """
-        Проверить наличие файла в рабочей директории.
-
-        Защита от path traversal: resolve() разворачивает .. и symlinks,
-        после чего проверяем, что итоговый путь остаётся внутри FILE_DIR.
-        """
+        """Проверить наличие файла в рабочей директории (с защитой от path traversal)."""
         return await asyncio.to_thread(self._file_exists_sync, file_name)
 
     @staticmethod
