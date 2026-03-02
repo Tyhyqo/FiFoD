@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     def validate_database_url(cls, v: str) -> str:
         if not any(v.startswith(s) for s in _VALID_DB_SCHEMES):
             raise ValueError(
-                f"DATABASE_URL должен начинаться с одного из: {_VALID_DB_SCHEMES}. "
-                "Пример: postgresql+asyncpg://user:pass@host:5432/db"
+                f"DATABASE_URL must start with one of: {_VALID_DB_SCHEMES}. "
+                "Example: postgresql+asyncpg://user:pass@host:5432/db"
             )
         return v
 
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     def validate_external_api_url(cls, v: str) -> str:
         if not any(v.startswith(s) for s in _VALID_HTTP_SCHEMES):
             raise ValueError(
-                "EXTERNAL_API_URL должен начинаться с http:// или https://"
+                "EXTERNAL_API_URL must start with http:// or https://"
             )
         return v
 
