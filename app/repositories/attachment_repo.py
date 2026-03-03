@@ -14,8 +14,18 @@ class AttachmentRepo:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create(self, device_id: str, file_names: list[str]) -> Attachment:
-        attachment = Attachment(device_id=device_id)
+    async def create(
+        self,
+        device_id: str,
+        file_names: list[str],
+        comment: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Attachment:
+        attachment = Attachment(
+            device_id=device_id,
+            comment=comment,
+            tags=tags or [],
+        )
         self._session.add(attachment)
         # flush фиксирует attachment.id в БД до вставки дочерних записей (FK-ограничение)
         await self._session.flush()
@@ -40,14 +50,25 @@ class AttachmentRepo:
         )
         return result.scalar_one()
 
-    async def get_all(self, skip: int = 0, limit: int = 100) -> list[Attachment]:
-        result = await self._session.execute(
+    async def get_all(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        tags: list[str] | None = None,
+    ) -> list[Attachment]:
+        stmt = (
             select(Attachment)
             .options(selectinload(Attachment.files))
             .order_by(Attachment.created_at.desc())
-            .offset(skip)
-            .limit(limit)
         )
+
+        if tags:
+            for tag in tags:
+                stmt = stmt.where(Attachment.tags.contains([tag]))
+
+        stmt = stmt.offset(skip).limit(limit)
+
+        result = await self._session.execute(stmt)
         attachments = list(result.scalars().all())
         logger.debug("Fetched %d attachments from DB.", len(attachments))
         return attachments
