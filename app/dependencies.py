@@ -1,3 +1,5 @@
+import uuid
+
 import httpx
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -65,9 +67,7 @@ async def get_current_user(
     if not user_id:
         raise InvalidCredentialsError("Invalid access token.")
 
-    from uuid import UUID
-
-    user = await repo.get_by_id(UUID(user_id))
+    user = await repo.get_by_id(uuid.UUID(user_id))
     if not user:
         raise InvalidCredentialsError("User not found.")
 
