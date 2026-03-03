@@ -1,6 +1,8 @@
 import time
 from typing import Any
 
+from app.config import settings
+
 
 class TTLCache:
 
@@ -23,5 +25,5 @@ class TTLCache:
         self._timestamp = 0.0
 
 
-files_cache = TTLCache(ttl=60)
-devices_cache = TTLCache(ttl=30)
+files_cache = TTLCache(ttl=settings.CACHE_FILES_TTL)
+devices_cache = TTLCache(ttl=settings.CACHE_DEVICES_TTL)
