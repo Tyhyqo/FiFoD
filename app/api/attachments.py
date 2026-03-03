@@ -15,7 +15,7 @@ async def create_attachment(
     svc: AttachmentService = Depends(get_attachment_service),
 ):
     """Создать привязку файлов к устройству."""
-    return await svc.create(body.deviceId, body.fileNames)
+    return await svc.create(body.deviceId, body.fileNames, comment=body.comment, tags=body.tags)
 
 
 @router.get("/attachments", response_model=list[AttachmentOut])
@@ -23,7 +23,8 @@ async def list_attachments(
     _user: User = Depends(get_current_user),
     skip: int = Query(0, ge=0, description="Пропустить первые N привязок"),
     limit: int = Query(100, ge=1, le=1000, description="Максимальное число привязок в ответе"),
+    tag: list[str] = Query(default=[], description="Фильтр по тегам (можно указать несколько)"),
     svc: AttachmentService = Depends(get_attachment_service),
 ):
     """Получить список всех привязок."""
-    return await svc.get_all(skip=skip, limit=limit)
+    return await svc.get_all(skip=skip, limit=limit, tags=tag or None)

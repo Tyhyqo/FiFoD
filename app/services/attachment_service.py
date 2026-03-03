@@ -21,7 +21,13 @@ class AttachmentService:
         self._device_service = device_service
         self._file_service = file_service
 
-    async def create(self, device_id: str, file_names: list[str]) -> Attachment:
+    async def create(
+        self,
+        device_id: str,
+        file_names: list[str],
+        comment: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Attachment:
         """Создать привязку устройства к файлам, проверив доступность устройства и наличие файлов."""
         logger.info("Creating attachment: device=%s files=%s", device_id, file_names)
 
@@ -40,9 +46,14 @@ class AttachmentService:
         if missing:
             raise FilesNotFoundError(missing)
 
-        attachment = await self._repo.create(device_id, unique_names)
+        attachment = await self._repo.create(device_id, unique_names, comment=comment, tags=tags)
         logger.info("Attachment created: id=%s device=%s", attachment.id, device_id)
         return attachment
 
-    async def get_all(self, skip: int = 0, limit: int = 100) -> list[Attachment]:
-        return await self._repo.get_all(skip=skip, limit=limit)
+    async def get_all(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        tags: list[str] | None = None,
+    ) -> list[Attachment]:
+        return await self._repo.get_all(skip=skip, limit=limit, tags=tags)
