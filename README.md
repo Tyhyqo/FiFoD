@@ -93,7 +93,18 @@ cp firmware.bin ./files/
 
 ### GET /api/attachments
 
-Все созданные привязки с информацией о файлах. Поддерживает пагинацию (`skip`, `limit`).
+Все созданные привязки с информацией о файлах. Поддерживает пагинацию (`skip`, `limit`)
+и фильтрацию по тегам (query-параметр `tag`, можно указать несколько).
+
+### GET /health
+
+Проверка состояния сервиса и подключения к БД. Возвращает `{"status": "ok", "database": "available"}`
+или `{"status": "unhealthy", "database": "unavailable"}`.
+
+### WebSocket /ws/files
+
+Подключение по WebSocket для получения событий об изменении файлов в реальном времени.
+Тестовая страница доступна по адресу `/ws-test`.
 
 ## Переменные окружения
 
@@ -121,6 +132,8 @@ cp firmware.bin ./files/
 | `HTTP_MAX_KEEPALIVE_CONNECTIONS` | нет | `20` | Максимум keep-alive соединений |
 | `HTTP_KEEPALIVE_EXPIRY` | нет | `30.0` | Время жизни keep-alive соединения (сек) |
 | `FILE_DIR` | нет | `/app/files` | Директория с файлами для привязки |
+| `CACHE_FILES_TTL` | нет | `60` | TTL кэша списка файлов (секунды) |
+| `CACHE_DEVICES_TTL` | нет | `30` | TTL кэша списка устройств (секунды) |
 | `LOG_LEVEL` | нет | `INFO` | Уровень логирования (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 
 Для Docker Compose также нужны `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — они передаются в контейнер PostgreSQL.
@@ -142,8 +155,18 @@ app/
   config.py         # Настройки (pydantic-settings)
   exceptions.py     # Доменные исключения
 migrations/         # Alembic-миграции
+tests/              # Тесты (pytest + pytest-asyncio)
 files/              # Директория для файлов (монтируется в контейнер)
 ```
+
+## Тестирование
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+Тесты используют SQLite in-memory (aiosqlite) и не требуют запущенного PostgreSQL.
 
 ## Стек
 
@@ -151,4 +174,6 @@ files/              # Директория для файлов (монтируе
 - PostgreSQL 16, SQLAlchemy 2.0 (async), Alembic
 - PyJWT + passlib/bcrypt (JWT-авторизация с refresh-токенами)
 - httpx (async HTTP-клиент для внешнего API)
+- watchfiles (отслеживание изменений файлов, WebSocket-уведомления)
+- pytest + pytest-asyncio (тестирование)
 - Docker, Docker Compose
