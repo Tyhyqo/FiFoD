@@ -6,6 +6,7 @@ import httpx
 
 from app.config import settings
 from app.exceptions import ExternalAPIError
+from app.infrastructure.cache import devices_cache
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ class DeviceService:
 
     async def get_free_devices(self) -> list[dict]:
         """Получить список свободных устройств с retry при 5xx."""
+        cached = devices_cache.get()
+        if cached is not None:
+            return cached
+
         last_exc: Exception | None = None
 
         for attempt in range(1, settings.EXTERNAL_API_RETRY_COUNT + 1):
@@ -78,7 +83,9 @@ class DeviceService:
                 else:
                     devices_raw = data
 
-                return self._filter(devices_raw)
+                result = self._filter(devices_raw)
+                devices_cache.set(result)
+                return result
 
             except ExternalAPIError:
                 raise

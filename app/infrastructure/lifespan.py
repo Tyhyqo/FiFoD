@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.infrastructure.database import create_engine, create_sessionmaker
 from app.infrastructure.http_client import create_http_client
 from app.repositories.user_repo import UserRepo
+from app.services.file_watcher import watch_files
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +37,18 @@ async def lifespan(app: FastAPI):
     app.state.http_client = create_http_client()
 
     cleanup_task = asyncio.create_task(_cleanup_expired_tokens(app.state.db_sessionmaker))
+    watcher_task = asyncio.create_task(watch_files())
     logger.info("Infrastructure initialized.")
     try:
         yield
     finally:
         cleanup_task.cancel()
-        try:
-            await cleanup_task
-        except asyncio.CancelledError:
-            pass
+        watcher_task.cancel()
+        for task in (cleanup_task, watcher_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         # Каждый ресурс закрывается независимо: сбой одного не блокирует остальные.
         logger.info("Shutdown: releasing infrastructure resources...")
