@@ -17,6 +17,7 @@ from app.api.exception_handlers import (
     user_already_exists_handler,
 )
 from app.api.files import router as files_router
+from app.api.ws import router as ws_router
 from app.exceptions import (
     DeviceNotFoundError,
     ExternalAPIError,
@@ -32,6 +33,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(devices_router, prefix="/api", tags=["Устройства"])
     app.include_router(files_router, prefix="/api", tags=["Файлы"])
     app.include_router(attachments_router, prefix="/api", tags=["Привязки"])
+    app.include_router(ws_router, tags=["WebSocket"])
 
 
 def register_exception_handlers(app: FastAPI) -> None:

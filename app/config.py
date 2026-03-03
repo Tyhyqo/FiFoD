@@ -34,6 +34,9 @@ class Settings(BaseSettings):
 
     FILE_DIR: str = "/app/files"
 
+    CACHE_FILES_TTL: int = Field(60, ge=1)
+    CACHE_DEVICES_TTL: int = Field(30, ge=1)
+
     LOG_LEVEL: str = Field("INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
 
     @field_validator("DATABASE_URL")
