@@ -1,5 +1,5 @@
 import logging
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from watchfiles import Change, awatch
 
@@ -18,11 +18,14 @@ _CHANGE_EVENTS = {
 
 async def watch_files() -> None:
     """Наблюдать за FILE_DIR и уведомлять клиентов при изменениях."""
-    logger.info("File watcher started: %s", settings.FILE_DIR)
-    async for changes in awatch(settings.FILE_DIR):
+    watch_dir = str(Path(settings.FILE_DIR).resolve())
+    logger.info("File watcher started: %s", watch_dir)
+    async for changes in awatch(watch_dir):
         logger.info("File changes detected: %s", changes)
         files_cache.invalidate()
         for change_type, path in changes:
+            if str(path) == watch_dir:
+                continue
             event = _CHANGE_EVENTS.get(change_type, "file_updated")
             name = PurePosixPath(path).name
             await ws_manager.broadcast({"event": event, "name": name})
