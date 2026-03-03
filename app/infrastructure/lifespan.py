@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 async def _cleanup_expired_tokens(sessionmaker) -> None:
-    """Фоновая задача: раз в час удаляет просроченные refresh-токены."""
     while True:
         await asyncio.sleep(3600)
         try:
@@ -27,10 +26,6 @@ async def _cleanup_expired_tokens(sessionmaker) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Startup: инициализация пула соединений с БД и HTTP-клиента.
-    Shutdown: корректное освобождение всех ресурсов.
-    """
     engine = create_engine()
     app.state.db_engine = engine
     app.state.db_sessionmaker = create_sessionmaker(engine)

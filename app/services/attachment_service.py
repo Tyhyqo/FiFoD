@@ -29,7 +29,6 @@ class AttachmentService:
         comment: str | None = None,
         tags: list[str] | None = None,
     ) -> Attachment:
-        """Создать привязку устройства к файлам, проверив доступность устройства и наличие файлов."""
         logger.info("Creating attachment: device=%s files=%s", device_id, file_names)
 
         devices = await self._device_service.get_free_devices()

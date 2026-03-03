@@ -1,28 +1,97 @@
-# FiFoD — Files For Device
+# FiFoD - Files For Device
 
-Сервис для привязки файлов к устройствам. Получает список устройств из внешнего REST API,
-работает с файлами в локальной директории и хранит привязки в PostgreSQL.
+Сервис для привязки файлов к устройствам. Получает список устройств из внешнего REST API, работает с файлами в локальной директории и хранит привязки в PostgreSQL.
 
-## Запуск
+**Что умеет:**
+- JWT-авторизация с refresh-токенами и ротацией
+- Проксирование списка свободных устройств из внешнего API (с retry и кэшированием)
+- Управление файлами через локальную директорию с отслеживанием изменений через WebSocket
+- Привязка файлов к устройствам с валидацией
+- Rate limiting на критичных эндпоинтах
+- Healthcheck с проверкой подключения к БД
+
+## Быстрый старт
 
 ```bash
 cp .env.example .env
-# Отредактировать .env: указать EXTERNAL_API_URL, EXTERNAL_API_TOKEN и JWT_SECRET_KEY
-
 docker compose up --build
 ```
 
 Сервис поднимется на `http://localhost:8000`. Миграции применяются автоматически при старте контейнера.
 
-В dev-режиме (с `docker-compose.override.yml`) код монтируется в контейнер и uvicorn
-перезапускается при изменениях — пересборка образа не нужна.
+Swagger UI доступен по адресу `/docs` - поддерживает кнопку **Authorize** для тестирования с JWT.
 
-## Авторизация
+В dev-режиме (с `docker-compose.override.yml`) код монтируется в контейнер и uvicorn перезапускается при изменениях.
 
-Все эндпоинты (кроме `/api/auth/*` и `/health`) защищены JWT-токеном.
-Swagger UI (`/docs`) поддерживает кнопку **Authorize** для удобного тестирования.
+## Архитектура
 
-### Регистрация
+Проект построен на слоёной архитектуре - каждый слой знает только о слое ниже:
+
+```mermaid
+graph TB
+    Client([Клиент]) --> API
+
+    subgraph FastAPI
+        API[API Layer<br/>Роуты, валидация, DI] --> Services[Service Layer<br/>Бизнес-логика]
+        Services --> Repos[Repository Layer<br/>Работа с БД]
+        Repos --> DB[(PostgreSQL)]
+    end
+
+    Services --> ExtAPI([Внешний API<br/>устройств])
+    Services --> FS([Файловая<br/>система])
+
+    WebSocket[WebSocket /ws/files] --> Client
+    FileWatcher[watchfiles] --> WebSocket
+    FS --> FileWatcher
+```
+
+Зависимости инжектируются через FastAPI `Depends` - это позволяет легко подменять их в тестах.
+
+### Схема базы данных
+
+```mermaid
+erDiagram
+    users {
+        uuid id PK
+        varchar username UK
+        varchar hashed_password
+        timestamptz created_at
+    }
+
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    attachments {
+        uuid id PK
+        varchar device_id
+        varchar comment
+        varchar[] tags
+        timestamptz created_at
+    }
+
+    attachment_files {
+        uuid id PK
+        uuid attachment_id FK
+        varchar file_name
+    }
+
+    users ||--o{ refresh_tokens : "has"
+    attachments ||--o{ attachment_files : "contains"
+```
+
+Фоновая задача каждый час удаляет просроченные refresh-токены.
+
+## API
+
+### Авторизация
+
+Все эндпоинты (кроме `/api/auth/*` и `/health`) защищены JWT.
+
+**POST /api/auth/register** - регистрация
 
 ```bash
 curl -X POST http://localhost:8000/api/auth/register \
@@ -30,25 +99,32 @@ curl -X POST http://localhost:8000/api/auth/register \
   -d '{"username": "admin", "password": "secret123"}'
 ```
 
-### Логин
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "admin",
+  "created_at": "2025-01-15T12:00:00Z"
+}
+```
+
+**POST /api/auth/login** - получение токенов
 
 ```bash
 curl -X POST http://localhost:8000/api/auth/login \
   -d "username=admin&password=secret123"
 ```
 
-Возвращает `access_token` (JWT, живёт 30 мин) и `refresh_token` (UUID, живёт 7 дней).
-
-### Использование токена
-
-```bash
-curl http://localhost:8000/api/devices \
-  -H "Authorization: Bearer <access_token>"
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "550e8400-e29b-41d4-a716-446655440000",
+  "token_type": "bearer"
+}
 ```
 
-### Обновление токена
+Access-токен живёт 30 минут, refresh - 7 дней.
 
-Когда access-токен истёк, отправьте refresh-токен для получения новой пары:
+**POST /api/auth/refresh** - обновление пары токенов
 
 ```bash
 curl -X POST http://localhost:8000/api/auth/refresh \
@@ -56,108 +132,162 @@ curl -X POST http://localhost:8000/api/auth/refresh \
   -d '{"refresh_token": "<refresh_token>"}'
 ```
 
-Каждый refresh-токен одноразовый — после использования выдаётся новая пара токенов (ротация).
+Каждый refresh-токен одноразовый - после использования выдаётся новая пара (ротация).
 
-## API
+### Устройства
 
-### GET /api/devices
+**GET /api/devices** - список свободных устройств
 
-Проксирует список свободных устройств из внешнего API. Возвращает только поля
-`serial`, `model`, `version`, `notes` и только устройства с `ready=true`, `using=false`.
+```bash
+curl http://localhost:8000/api/devices \
+  -H "Authorization: Bearer <access_token>"
+```
 
-Если внешний API отвечает 5xx или `success=false`, сервис повторяет запрос
-(количество попыток и задержка настраиваются через env).
+```json
+[
+  {
+    "serial": "ABC123",
+    "model": "Pixel 7",
+    "version": "14.0",
+    "notes": ""
+  }
+]
+```
 
-### GET /api/files
+Проксирует данные из внешнего API, фильтруя только свободные устройства (`ready=true`, `using=false`). При 5xx или `success=false` повторяет запрос (настраивается через env). Результат кэшируется на 30 секунд.
 
-Список файлов в рабочей директории (`FILE_DIR`). Поддерживает пагинацию
-через query-параметры `skip` и `limit`.
+### Файлы
 
-Файлы добавляются любым удобным способом — через volume они сразу видны в контейнере:
+**GET /api/files** - список файлов в рабочей директории
+
+```bash
+curl "http://localhost:8000/api/files?skip=0&limit=10" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+```json
+[
+  {
+    "name": "firmware.bin",
+    "size": 1048576,
+    "modified_at": "2025-01-15T12:00:00Z"
+  }
+]
+```
+
+Файлы добавляются через volume:
 ```bash
 cp firmware.bin ./files/
 ```
 
-### POST /api/attachments
+Результат кэшируется на 60 секунд. Кэш сбрасывается автоматически при изменениях в директории.
 
-Создать привязку файлов к устройству.
+### Привязки
+
+**POST /api/attachments** - создать привязку файлов к устройству
+
+```bash
+curl -X POST http://localhost:8000/api/attachments \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId": "ABC123", "fileNames": ["firmware.bin", "config.json"]}'
+```
 
 ```json
 {
-  "deviceId": "ABC123",
-  "fileNames": ["firmware.bin", "config.json"]
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "device_id": "ABC123",
+  "comment": null,
+  "tags": [],
+  "created_at": "2025-01-15T12:00:00Z",
+  "files": [
+    {"id": "...", "file_name": "firmware.bin"},
+    {"id": "...", "file_name": "config.json"}
+  ]
 }
 ```
 
-Перед сохранением проверяется, что устройство есть в списке свободных и все файлы существуют.
+Перед сохранением проверяется доступность устройства и наличие всех файлов (проверки выполняются параллельно через `asyncio.gather`).
 
-### GET /api/attachments
+**GET /api/attachments** - список привязок
 
-Все созданные привязки с информацией о файлах. Поддерживает пагинацию (`skip`, `limit`)
-и фильтрацию по тегам (query-параметр `tag`, можно указать несколько).
+Поддерживает пагинацию (`skip`, `limit`) и фильтрацию по тегам (`?tag=test&tag=prod`).
 
-### GET /health
+### Healthcheck
 
-Проверка состояния сервиса и подключения к БД. Возвращает `{"status": "ok", "database": "available"}`
-или `{"status": "unhealthy", "database": "unavailable"}`.
+**GET /health** - состояние сервиса
 
-### WebSocket /ws/files
+```json
+{"status": "ok", "database": "available"}
+```
 
-Подключение по WebSocket для получения событий об изменении файлов в реальном времени.
+Проверяет подключение к БД через `SELECT 1`.
+
+### WebSocket
+
+**WS /ws/files** - события изменения файлов в реальном времени
+
+```json
+{"event": "file_added", "name": "firmware.bin"}
+{"event": "file_modified", "name": "config.json"}
+{"event": "file_deleted", "name": "old_file.bin"}
+```
+
 Тестовая страница доступна по адресу `/ws-test`.
 
-## Переменные окружения
+## Конфигурация
 
-Полный список с описаниями — в `.env.example`. Ниже все доступные переменные:
+Полный список переменных - в `.env.example`.
 
-| Переменная | Обязательная | По умолчанию | Описание |
-|---|---|---|---|
-| `DATABASE_URL` | да | — | Строка подключения к PostgreSQL (`postgresql+asyncpg://...`) |
-| `DB_POOL_SIZE` | нет | `10` | Количество постоянных соединений в пуле |
-| `DB_MAX_OVERFLOW` | нет | `20` | Дополнительные соединения сверх пула |
-| `DB_POOL_RECYCLE` | нет | `3600` | Пересоздавать соединения через N секунд |
-| `JWT_SECRET_KEY` | да | — | Секретный ключ для подписи JWT-токенов |
-| `JWT_ALGORITHM` | нет | `HS256` | Алгоритм подписи JWT |
-| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | нет | `30` | Время жизни access-токена (минуты) |
-| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | нет | `7` | Время жизни refresh-токена (дни) |
-| `EXTERNAL_API_URL` | да | — | URL внешнего API устройств |
-| `EXTERNAL_API_TOKEN` | да | — | Bearer-токен для внешнего API |
-| `EXTERNAL_API_RETRY_COUNT` | нет | `3` | Количество повторных попыток при ошибке |
-| `EXTERNAL_API_RETRY_DELAY` | нет | `1.0` | Пауза между попытками (секунды) |
-| `HTTP_TIMEOUT_CONNECT` | нет | `5.0` | Таймаут на установку соединения (сек) |
-| `HTTP_TIMEOUT_READ` | нет | `10.0` | Таймаут ожидания ответа (сек) |
-| `HTTP_TIMEOUT_WRITE` | нет | `10.0` | Таймаут на отправку запроса (сек) |
-| `HTTP_TIMEOUT_POOL` | нет | `5.0` | Таймаут ожидания свободного коннекта из пула (сек) |
-| `HTTP_MAX_CONNECTIONS` | нет | `100` | Максимум одновременных HTTP-соединений |
-| `HTTP_MAX_KEEPALIVE_CONNECTIONS` | нет | `20` | Максимум keep-alive соединений |
-| `HTTP_KEEPALIVE_EXPIRY` | нет | `30.0` | Время жизни keep-alive соединения (сек) |
-| `FILE_DIR` | нет | `/app/files` | Директория с файлами для привязки |
-| `CACHE_FILES_TTL` | нет | `60` | TTL кэша списка файлов (секунды) |
-| `CACHE_DEVICES_TTL` | нет | `30` | TTL кэша списка устройств (секунды) |
-| `LOG_LEVEL` | нет | `INFO` | Уровень логирования (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
+### База данных
 
-Для Docker Compose также нужны `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — они передаются в контейнер PostgreSQL.
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `DATABASE_URL` | - | Строка подключения (`postgresql+asyncpg://...`) |
+| `DB_POOL_SIZE` | `10` | Постоянные соединения в пуле |
+| `DB_MAX_OVERFLOW` | `20` | Дополнительные соединения сверх пула |
+| `DB_POOL_RECYCLE` | `3600` | Пересоздание соединений (сек) |
 
-## Структура проекта
+### JWT
 
-```
-app/
-  api/              # Роуты (devices, files, attachments) и обработчики ошибок
-  services/         # Бизнес-логика
-  repositories/     # Работа с БД
-  db/               # ORM-модели, сессии, декларативная база
-  schemas/          # Pydantic-схемы запросов/ответов
-  infrastructure/   # Движок БД, HTTP-клиент, lifespan
-  core/             # Логирование
-  main.py           # Точка входа (FastAPI-приложение)
-  router.py         # Подключение роутеров
-  dependencies.py   # Фабрики зависимостей (Depends)
-  config.py         # Настройки (pydantic-settings)
-  exceptions.py     # Доменные исключения
-migrations/         # Alembic-миграции
-tests/              # Тесты (pytest + pytest-asyncio)
-files/              # Директория для файлов (монтируется в контейнер)
-```
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `JWT_SECRET_KEY` | - | Секретный ключ подписи |
+| `JWT_ALGORITHM` | `HS256` | Алгоритм подписи |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Время жизни access-токена |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Время жизни refresh-токена |
+
+### Внешний API
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `EXTERNAL_API_URL` | - | URL API устройств |
+| `EXTERNAL_API_TOKEN` | - | Bearer-токен |
+| `EXTERNAL_API_RETRY_COUNT` | `3` | Количество повторных попыток |
+| `EXTERNAL_API_RETRY_DELAY` | `1.0` | Пауза между попытками (сек) |
+
+### HTTP-клиент
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `HTTP_TIMEOUT_CONNECT` | `5.0` | Таймаут соединения (сек) |
+| `HTTP_TIMEOUT_READ` | `10.0` | Таймаут ответа (сек) |
+| `HTTP_TIMEOUT_WRITE` | `10.0` | Таймаут отправки (сек) |
+| `HTTP_TIMEOUT_POOL` | `5.0` | Таймаут пула (сек) |
+| `HTTP_MAX_CONNECTIONS` | `100` | Максимум соединений |
+| `HTTP_MAX_KEEPALIVE_CONNECTIONS` | `20` | Максимум keep-alive |
+| `HTTP_KEEPALIVE_EXPIRY` | `30.0` | Время жизни keep-alive (сек) |
+
+### Прочее
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `FILE_DIR` | `/app/files` | Директория с файлами |
+| `CACHE_FILES_TTL` | `60` | TTL кэша файлов (сек) |
+| `CACHE_DEVICES_TTL` | `30` | TTL кэша устройств (сек) |
+| `LOG_LEVEL` | `INFO` | Уровень логирования |
+
+Для Docker Compose также нужны `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
 
 ## Тестирование
 
@@ -168,12 +298,41 @@ pytest
 
 Тесты используют SQLite in-memory (aiosqlite) и не требуют запущенного PostgreSQL.
 
+**Что покрыто (25 тестов):**
+
+- **Авторизация** - регистрация, дубликаты, валидация, логин, неверный пароль, refresh-ротация, повторное использование refresh-токена, невалидный токен, декодирование JWT
+- **Файлы** - листинг, пагинация, пустая/несуществующая директория, проверка существования, защита от path traversal
+- **Устройства** - фильтрация, пустой список, кэширование, ошибки 4xx, retry при 5xx
+- **Healthcheck** - проверка /health
+
+## Структура проекта
+
+```
+app/
+  api/              Роуты и обработчики ошибок
+  services/         Бизнес-логика
+  repositories/     Работа с БД
+  db/               ORM-модели, сессии
+  schemas/          Pydantic-схемы
+  infrastructure/   Движок БД, HTTP-клиент, кэш, lifespan
+  core/             Логирование, rate limiter
+  main.py           Точка входа
+  router.py         Подключение роутеров
+  dependencies.py   Фабрики зависимостей (Depends)
+  config.py         Настройки (pydantic-settings)
+  exceptions.py     Доменные исключения
+migrations/         Alembic-миграции
+tests/              Тесты (pytest + pytest-asyncio)
+files/              Директория для файлов (volume)
+```
+
 ## Стек
 
-- Python 3.12, FastAPI, uvicorn
-- PostgreSQL 16, SQLAlchemy 2.0 (async), Alembic
-- PyJWT + passlib/bcrypt (JWT-авторизация с refresh-токенами)
-- httpx (async HTTP-клиент для внешнего API)
-- watchfiles (отслеживание изменений файлов, WebSocket-уведомления)
-- pytest + pytest-asyncio (тестирование)
-- Docker, Docker Compose
+- **Python 3.12, FastAPI, uvicorn** - async из коробки, автогенерация OpenAPI-документации
+- **PostgreSQL 16, SQLAlchemy 2.0 (async), Alembic** - типизированный ORM с миграциями
+- **PyJWT + passlib/bcrypt** - JWT-авторизация с ротацией refresh-токенов
+- **httpx** - async HTTP-клиент для работы с внешним API
+- **watchfiles** - отслеживание изменений файлов, WebSocket-уведомления
+- **slowapi** - rate limiting на основе slowapi/limits
+- **pytest + pytest-asyncio + aiosqlite** - тестирование с in-memory SQLite
+- **Docker, Docker Compose** - контейнеризация и оркестрация
