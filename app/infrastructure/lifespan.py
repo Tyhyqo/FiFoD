@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
             pass
 
         # Каждый ресурс закрывается независимо: сбой одного не блокирует остальные.
-        logger.info("Graceful shutdown: releasing infrastructure resources...")
+        logger.info("Shutdown: releasing infrastructure resources...")
         try:
             await app.state.http_client.aclose()
             logger.info("HTTP client closed.")
