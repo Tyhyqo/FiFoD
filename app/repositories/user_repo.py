@@ -36,7 +36,6 @@ class UserRepo:
         return token
 
     async def take_refresh_token(self, token_id: uuid.UUID) -> RefreshToken | None:
-        """Атомарно удалить и вернуть refresh-токен (DELETE ... RETURNING)."""
         result = await self._session.execute(
             delete(RefreshToken)
             .where(RefreshToken.id == token_id)

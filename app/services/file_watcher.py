@@ -17,7 +17,6 @@ _CHANGE_EVENTS = {
 
 
 async def watch_files() -> None:
-    """Наблюдать за FILE_DIR и уведомлять клиентов при изменениях."""
     watch_dir = Path(settings.FILE_DIR).resolve()
     if not watch_dir.is_dir():
         logger.warning("FILE_DIR does not exist, file watcher disabled: %s", watch_dir)

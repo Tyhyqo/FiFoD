@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 class FileService:
 
     async def list_files(self, skip: int = 0, limit: int = 100) -> list[dict]:
-        """Получить страницу файлов из рабочей директории (FILE_DIR)."""
         cached = files_cache.get()
         if cached is not None:
             return cached[skip : skip + limit]
@@ -23,7 +22,6 @@ class FileService:
         return all_files[skip : skip + limit]
 
     async def file_exists(self, file_name: str) -> bool:
-        """Проверить наличие файла в рабочей директории (с защитой от path traversal)."""
         return await asyncio.to_thread(self._file_exists_sync, file_name)
 
     @staticmethod

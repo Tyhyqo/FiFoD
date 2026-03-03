@@ -21,7 +21,6 @@ class DeviceService:
         self._headers = {"Authorization": f"Bearer {settings.EXTERNAL_API_TOKEN}"}
 
     async def get_free_devices(self) -> list[dict]:
-        """Получить список свободных устройств с retry при 5xx."""
         cached = devices_cache.get()
         if cached is not None:
             return cached
@@ -107,7 +106,6 @@ class DeviceService:
 
     @staticmethod
     def _filter(devices_raw: list[dict]) -> list[dict]:
-        """Оставить только свободные устройства (ready=true, using=false) и нужные поля."""
         return [
             {field: device.get(field) for field in _EXPOSED_FIELDS}
             for device in devices_raw

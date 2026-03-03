@@ -37,7 +37,6 @@ def register_routers(app: FastAPI) -> None:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Порядок регистрации важен: специфичные типы до Exception."""
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(OperationalError, db_operational_error_handler)
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
